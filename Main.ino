@@ -7,12 +7,16 @@ int32_t StepsPerRev = 1600;
 // Координаты вращения головы
 int32_t path[][3] = {
   {0, 0, 0},
-  {-43000, -1600, -16000},
-  {0, 0, 0}
+  {0, 1600, 0},
+  {-10000, 800, -8000},
+  {-33000, 800, -16000},
+  {-42000, 1600, -24000},
+  {-33000, 800, -16000},
+  {-10000, 800, -8000},
+  {0, 1600, 0},
 };
 
 int nodeAmount = sizeof(path) / 12; // Количество точек. Определяется как вес всего массива / (4*3) байта
-//int nodeAmount = 3; // Количество точек. Определяется как вес всего массива / (4*3) байта
 
 //Объявление концевиков
 const int conPin0 = 3;
@@ -24,7 +28,7 @@ SoftwareSerial serialDisplay(26, 27); //rx tx
 
 int16_t adress = 0;
 
-#define max_adress 4095 //uno == 1023     mega == 4095
+#define max_adress 4094 //uno == 1023     mega == 4095
 #define max_cycle 100000
 #define max_value 1000000
 
@@ -36,17 +40,20 @@ Stepper<STEPPER2WIRE> stepper3(11, 12);
 GPlanner2<STEPPER2WIRE, 3> planner;
 
 
-int j = 0; // Счётчик точек маршрута
+int j = 1; // Счётчик точек маршрута
 
 
 void setup() {
   Serial.begin(9600);
   serialDisplay.begin(9600);
 
+ // Экран
+  displayCounterOn();
+
   // Шаговики
-  planner.setAcceleration( 300 );      // Ускорение
-  planner.setMaxSpeed( 1800 );         // Максимальная скорость
-  
+  planner.setAcceleration( 400 );      // Ускорение
+  planner.setMaxSpeed( 2200 );         // Максимальная скорость
+
   // Настройка планировщика
   planner.addStepper(0, stepper1);  // ось 0
   planner.addStepper(1, stepper2);  // ось 1
@@ -62,56 +69,28 @@ void setup() {
   //pinMode(10, OUTPUT);
   //pinMode(13, OUTPUT);
 
-  
-  float k = EEPROM.read(4094);
-  if(k!=0){
-    for (int i = 0; i<max_adress-4; i += 2)
-      EEPROM.write(i,0);
-  }
-  while(true)
-  {
-    if (EEPROM.read(adress+2) >= max_cycle)
-    {
-      adress+=4;
-    }else
-    {
-      break;
-    }
-  }
-
-  displayCounterOn();
-
   homing();
   planner.setCurrent(path[0]); // Установка нулевых координат
   planner.start();
-
-  //planner.tick();
-  //planner.addTarget(path[j], 0, ABSOLUTE);
-  //    if ( ++j >= nodeAmount ) {
-  //      j = 0; // Закольцевать      
-  //    }
 }
 
-
-
 //-----------------------------Шаговики------------------------------------------------
-
 
 bool first_on = true;
 void loop() {
 
   if (first_on){
       first_on=false;
-      delay(10000);
+      delay(1000);
   }
 
   planner.tick(); // Тикер для управления шаговиками
-  
+
   if (planner.available()) {
     // добавляем точку маршрута и является ли она точкой остановки (0 - нет)
       planner.addTarget(path[j], 0, ABSOLUTE);
       if ( ++j >= nodeAmount ) {
-        j = 0; // Закольцевать
+        j = 1; // Закольцевать
         displayCounter(); //Глобальный отсчёт
       }
   }
@@ -123,7 +102,7 @@ void yield() {
   if (planner.available()) {
       planner.addTarget(path[j], 0, ABSOLUTE);
       if ( ++j >= nodeAmount ) {
-        j = 0;
+        j = 1;
       }
   }
 }
@@ -135,9 +114,9 @@ void homing() {
   int count_conPin0 = 0;
   int count_conPin2 = 0;
 
-  planner.setSpeed(0, 600);      // ось 0
+  planner.setSpeed(0, 1000);      // ось 0
       
-  while ( count_conPin0 < 100 ) {
+  while ( count_conPin0 < 15000 ) {
     planner.tick();
     if ( digitalRead( conPin0 ) == 0 ) ++count_conPin0;
   }
@@ -145,7 +124,7 @@ void homing() {
   planner.brake();
 
   planner.setSpeed(1, -900);
-  while ( count_conPin2 < 100 ) {
+  while ( count_conPin2 < 3000 ) {
     planner.tick();
     if ( digitalRead( conPin2 ) == 0 ) ++count_conPin2;
   }
@@ -165,45 +144,79 @@ void comandEnd() {
     serialDisplay.write(0xff);
   }
 }
+
 void displayCounterOn()
 {
-  int16_t a = EEPROM.read(adress);
+  long k;
+  EEPROM.get(max_adress-4,k);
+  if(k!=0){
+    for (int i = 0; i<max_adress+1; i += 1)
+     { 
+      EEPROM.write(i,0);
+     }
+  }
+  int adr;
+  while(true)
+  {
+    EEPROM.get(adress+4, adr);
+    if (adr >= max_cycle)
+    {
+      adress+=6;
+    }else
+    {
+      break;
+    }
+  }
+  long a;
+  EEPROM.get(adress,a);
   String str = String(a);
   serialDisplay.print("page0.counter.val=" + str);
   comandEnd();
 }
+
 void displayCounter(){ 
-  int16_t a = EEPROM.read(adress);
-  int16_t b = EEPROM.read(adress + 2);
-  if (b >= max_cycle)
+  long a;
+  EEPROM.get(adress,a);
+  Serial.print(a);
+  int16_t b;
+  EEPROM.get(adress + 4, b);
+  if (b >= max_cycle-1)
   {
-     if (adress + 4 >= 4096)
+     if (adress + 6 >= max_adress-6)
      {
-       if(true){
-          for (int i = 0; i<max_adress; i += 2)
-            EEPROM.write(i,0);
-        }
+      for (int i = 0; i<max_adress+1; i += 1)
+      {
+        EEPROM.write(i,0);
+      }
+      adress = 0;
+      EEPROM.put(adress, a);
      }else
      {
-      adress += 4;
+      adress += 6;
       b = 0;
+      a++;
+      EEPROM.put(adress, a);
+      EEPROM.put(adress + 4, b);
+      String str = String(a);
+      serialDisplay.print("page0.counter.val=" + str);
+      comandEnd();
+      return;
      }
   }
-  if (a >= max_value-1)
+  if (a >= max_value)
   {
-    a = 0;
     b++;
-     EEPROM.update(adress, 0);
-     EEPROM.update(adress + 2, b);
+    EEPROM.put(adress, 0);
+    EEPROM.put(adress + 4, b);
     String str = String(a);
     serialDisplay.print("page0.counter.val=" + str);
     comandEnd();
-    while(true){}
+    while(true){ }
   }
   a++;
   b++;
-   EEPROM.update(adress, a);
-   EEPROM.update(adress + 2, b);
+  EEPROM.put(adress, a);
+  EEPROM.put(adress + 4, b);
   String str = String(a);
   serialDisplay.print("page0.counter.val=" + str);
   comandEnd();

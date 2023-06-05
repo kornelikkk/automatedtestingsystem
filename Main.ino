@@ -3,6 +3,7 @@
 #include <EEPROM.h>
 
 int32_t StepsPerRev = 1600;
+String str = "__";
 
 // Координаты вращения головы
 int32_t path[][3] = {
@@ -16,7 +17,8 @@ int32_t path[][3] = {
   {0, 1600, 0},
 };
 
-int nodeAmount = sizeof(path) / 12; // Количество точек. Определяется как вес всего массива / (4*3) байта
+const int8_t nodeAmount = sizeof(path) / 12; // Количество точек. Определяется как вес всего массива / (4*3) байта
+//int8_t nodeAmount = 8;
 
 //Объявление концевиков
 const int conPin0 = 3;
@@ -37,11 +39,9 @@ int16_t adress = 0;
 Stepper<STEPPER2WIRE> stepper1(5, 6); 
 Stepper<STEPPER2WIRE> stepper2(8, 9);
 Stepper<STEPPER2WIRE> stepper3(11, 12);
-GPlanner2<STEPPER2WIRE, 3> planner;
+GPlanner2<STEPPER2WIRE, 3, nodeAmount> planner;
 
-
-int j = 1; // Счётчик точек маршрута
-
+int j = 0; // Счётчик точек маршрута
 
 void setup() {
   Serial.begin(9600);
@@ -80,8 +80,8 @@ bool first_on = true;
 void loop() {
 
   if (first_on){
-      first_on=false;
-      delay(1000);
+    first_on=false;
+    delay(1000);
   }
 
   planner.tick(); // Тикер для управления шаговиками
@@ -89,22 +89,28 @@ void loop() {
   if (planner.available()) {
     // добавляем точку маршрута и является ли она точкой остановки (0 - нет)
       planner.addTarget(path[j], 0, ABSOLUTE);
-      if ( ++j >= nodeAmount ) {
-        j = 1; // Закольцевать
-        displayCounter(); //Глобальный отсчёт
-      }
+       ++j;
+       if ( j == 5 ) {
+         displayCounter();
+         //Serial.println("check#1+1");
+       }
+       if ( j >= nodeAmount ){
+          j = 1;
+          displayCounter();
+          //Serial.println("check#2+1");
+       }
   }
 }
 
-void yield() {
-  //planner.tick(); 
-
-  if (planner.available()) {
+void yield() {; 
+   if (planner.available()) {
       planner.addTarget(path[j], 0, ABSOLUTE);
-      if ( ++j >= nodeAmount ) {
+      ++j;
+      if ( j >= nodeAmount - 1 ){
         j = 1;
       }
-  }
+    }
+   Serial.println(j);
 }
 
 
@@ -113,22 +119,21 @@ void yield() {
 void homing() {
   int count_conPin0 = 0;
   int count_conPin2 = 0;
+  //Serial.println(str + sizeof(path) + str);
 
-  planner.setSpeed(0, 1000);      // ось 0
-      
-  while ( count_conPin0 < 15000 ) {
-    planner.tick();
-    if ( digitalRead( conPin0 ) == 0 ) ++count_conPin0;
-  }
-
-  planner.brake();
-
-  planner.setSpeed(1, -900);
+  planner.setSpeed(1, -800);
   while ( count_conPin2 < 3000 ) {
     planner.tick();
     if ( digitalRead( conPin2 ) == 0 ) ++count_conPin2;
   }
+  planner.brake();
 
+
+  planner.setSpeed(0, 800);      // ось 0
+  while ( count_conPin0 < 15000 ) {
+    planner.tick();
+    if ( digitalRead( conPin0 ) == 0 ) ++count_conPin0;
+  }
   planner.brake();                // тормозим, приехали
 
   planner.reset();    // сбрасываем координаты в 0
@@ -145,8 +150,7 @@ void comandEnd() {
   }
 }
 
-void displayCounterOn()
-{
+void displayCounterOn() {
   long k;
   EEPROM.get(max_adress-4,k);
   if(k!=0){

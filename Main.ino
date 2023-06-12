@@ -9,11 +9,11 @@ String str = "__";
 int32_t path[][3] = {
   {0, 0, 0},
   {0, 1600, 0},
-  {-10000, 800, -8000},
-  {-33000, 800, -16000},
+  {-10000, 1800, -8000},
+  {-33000, 1800, -16000},
   {-42000, 1600, -24000},
-  {-33000, 800, -16000},
-  {-10000, 800, -8000},
+  {-33000, 1800, -16000},
+  {-10000, 1800, -8000},
   {0, 1600, 0},
 };
 
@@ -110,7 +110,7 @@ void yield() {;
         j = 1;
       }
     }
-   Serial.println(j);
+   //Serial.println(j);
 }
 
 
@@ -129,7 +129,7 @@ void homing() {
   planner.brake();
 
 
-  planner.setSpeed(0, 800);      // ось 0
+  planner.setSpeed(0, 1000);      // ось 0
   while ( count_conPin0 < 15000 ) {
     planner.tick();
     if ( digitalRead( conPin0 ) == 0 ) ++count_conPin0;
